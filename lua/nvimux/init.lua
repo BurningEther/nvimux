@@ -10,11 +10,14 @@ local nvimux = {}
 local bindings = require('nvimux.bindings')
 local vars = require('nvimux.vars')
 local fns = require('nvimux.fns')
+local ui = require('nvimux.ui')
 nvimux.debug = {}
 nvimux.bindings = bindings
 nvimux.config = {}
 nvimux.term = {}
 nvimux.term.prompt = {}
+
+nvimux.commands = {}
 
 -- [ Private variables and tables
 local nvim = vim.api -- luacheck: ignore
@@ -57,11 +60,40 @@ bindings.mappings = {
 
 bindings.map_table = {}
 
+local win_cmd = function(create_window)
+      local select_buffer
+    if type(vars.new_window) == "function" then
+      select_buffer = vars.new_window
+    else
+      select_buffer = function()
+        vim.api.nvim_command(vars.new_window)
+      end
+    end
+
+    ui.on_new(create_window, select_buffer)
+end
+
+local tab_cmd = function(create_window)
+      local select_buffer
+      local selector = vars.new_tab or vars.new_window
+    if type(selector) == "function" then
+      select_buffer = selector
+    else
+      select_buffer = function()
+        vim.api.nvim_command(selector)
+      end
+    end
+
+    ui.on_new(create_window, select_buffer)
+end
+
+nvimux.commands.horizontal_split = function() return win_cmd[[spl|wincmd j]] end
+nvimux.commands.vertical_split = function() return win_cmd[[vspl|wincmd l]] end
+nvimux.commands.new_tab = function() return tab_cmd[[tabe]] end
+
+
 local nvimux_commands = {
-  {name = 'NvimuxHorizontalSplit', lazy_cmd = function() return [[spl|wincmd j|]] .. vars.new_window end},
-  {name = 'NvimuxVerticalSplit', lazy_cmd = function() return [[vspl|wincmd l|]] .. vars.new_window end},
   {name = 'NvimuxPreviousTab', cmd = [[lua require('nvimux').go_to_last_tab()]]},
-  {name = 'NvimuxNewTab', lazy_cmd = function() return [[tabe|]] .. (vars.new_tab or vars.new_window) end},
   {name = 'NvimuxSet', cmd = [[lua require('nvimux').config.set_fargs(<f-args>)]], nargs='+'},
 }
 
@@ -134,7 +166,6 @@ end
 -- [[ Config-handling commands
 nvimux.config.set = function(options)
   vars[options.key] = options.value
-  nvim.nvim_set_var('nvimux_' .. options.key, options.value)
 end
 
 nvimux.config.set_fargs = function(key, value)
